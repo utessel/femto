@@ -90,6 +90,23 @@ bootMain:
     out MCUSR, TEMP        ; and clear it (temp is 0)
     ori RESETREASON, 0x20  ; make value a readable character
 
+#if WATCHDOG > 0
+    sbrc RESETREASON,4     ; via watchdog?
+    rjmp preboot           ; then try to start app
+
+    ; works like this:
+    ; at power on, the watchdog wasn't the reason for reset
+    ; so the code continues here. But when no command is 
+    ; received, the watchdog will reset and we come here 
+    ; again: this time we try to start the app
+    ; if it does not exist, the bit is cleared already
+    ; so we run through (and will do this forever until
+    ; a command is received)
+    ; the only thing is: the app will not know if it was
+    ; really reset by the watchdog
+
+#endif
+
 #if (UBRR_VAL>>8)!=0
     ldi TEMP, hi8(UBRR_VAL)
     out UBRRH,TEMP
@@ -101,7 +118,7 @@ bootMain:
     out UCSRB,TEMP
 
 #if 0
-   ; 2 stop bits
+   ; 2 stop bits?
     ldi TEMP, (1<<USBS)|(3<<UCSZ0)
     out UCSRC,TEMP
 #endif
@@ -131,9 +148,14 @@ checksumfail:
     ; todo
 #endif
 
+#if 0 
+    ; max 2 chars to send in buffer:
+    ; and the buffer will flush while waiting for
+    ; bytes to be received
 bootWait:
     sbis UCSRA,UDRE
     rjmp bootWait
+#endif
     out UDR, WAITING   ; tell loader we are waiting
 
 bootLoop:
@@ -155,13 +177,15 @@ rxLoop:
                    ; it should send zero bytes to get out of the rx loops 
                    ; (without the watchdog). Zero will likely generate 
                    ; a checksum error, and if not, a NOP command
+#ifndef NO_EEPROM
     sbrc DATA,7    ; bit 7 set of command: see below
     rjmp other
+#endif
     sbrc DATA,6    ; bit 6 set: read memory/fuses
     rjmp readlpm
     out SPMCSR, DATA 
     spm           ; NOP if bit 0 wasn't set in DATA
-    movw r0,ZL    ; transfer Z to r0 (for next command)
+    movw r0,ZL    ; transfer Z to r0:1 (for next command)
     out UDR, DATA  ; 2nd ack: as feedback that command is done
     rjmp rxLoop
 
@@ -173,9 +197,14 @@ sendbyte:
     out UDR, TEMP    ; and send result
     rjmp rxLoop
 
+#ifndef NO_EEPROM
 other:
+#if 0
+    ; let watchdog handle this: No interaction required
+    ; but without watchdog, it might be useful
     sbrc DATA,6      ; bit 6 set = start application
     rjmp preboot
+#endif
     sbrc DATA,5      ; bit 5: write or read eeprom
     rjmp writeeeprom
 
@@ -199,7 +228,10 @@ waitforeeprom:
     sbic EECR,EEPE   
     rjmp waitforeeprom 
     rjmp doreadeeprom ; as ack: read byte
+#endif
 
+; todo: this might be useful for the app, too
+; so check the register assignment
 rxByte:
     sbis UCSRA, RXC
     rjmp rxByte
