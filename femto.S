@@ -107,7 +107,7 @@ bootMain:
 #endif
 
 #if WATCHDOG > 0
-    wdr
+;    wdr 
     in TEMP, WDTCSR
     ori TEMP, (1<<WDCE) | (1<<WDE)
     out WDTCSR, TEMP
@@ -162,10 +162,11 @@ rxLoop:
     out SPMCSR, DATA 
     spm           ; NOP if bit 0 wasn't set in DATA
     movw r0,ZL    ; transfer Z to r0 (for next command)
+    out UDR, DATA  ; 2nd ack: as feedback that command is done
     rjmp rxLoop
 
 readlpm:
-    ; eor DATA,ACK   ; clear bit 6
+    ; eor DATA,ACK   ; clear bit 6 (then use @ for Ack)
     out SPMCSR, DATA ; what kind of read (the command)
     lpm TEMP,Z       ; perform the read
 sendbyte:
