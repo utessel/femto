@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <termios.h>
 
 /*
    this is just a quick hack to test a few things of the bootloader.
@@ -20,6 +21,7 @@ void Usage(const char * name)
   printf(" w: write a page\n");
   printf(" f: read fuses\n");
   printf(" e: read eeprom\n");
+  printf(" k: kill app\n");
   printf(" x: write some eeprom bytes\n");
 }
 
@@ -56,15 +58,16 @@ void DumpMemory(unsigned char memory[], int size)
   if (i%16!=15) printf("\n");
 }
 
-void ExecuteCommand( unsigned char a, unsigned char b, unsigned char cmd )
+unsigned char ExecuteCommand( unsigned char a, unsigned char b, unsigned char cmd )
 {
+    int bytes;
     unsigned char ack;
     int retry=3;
     while (retry>0)
     {
       SendCommand(a,b,cmd);
 
-      int bytes = read(serialFile, &ack, 1 );
+      bytes = read(serialFile, &ack, 1 );
       if (bytes<=0) 
       {
          perror("read ack from serial port");
@@ -79,6 +82,16 @@ void ExecuteCommand( unsigned char a, unsigned char b, unsigned char cmd )
         printf("No ack: %x\n", ack);
       retry--;
     }
+
+    unsigned char result;
+    bytes = read(serialFile, &result, 1 );
+    if (bytes<=0) 
+    {
+       perror("read data from serial port");
+       exit(-1);
+    }
+
+    return result;
 }
 
 void ReadMem(unsigned char mem[], int size, unsigned char cmd)
@@ -89,15 +102,8 @@ void ReadMem(unsigned char mem[], int size, unsigned char cmd)
     int bytes;
     if (i%32==0) { printf("%04x\r",i); fflush(stdout); }
 
-    ExecuteCommand( i,i>>8, cmd );
-
     unsigned char data;
-    bytes = read(serialFile, &data, 1 );
-    if (bytes<=0) 
-    {
-       perror("read data from serial port");
-       exit(-1);
-    }
+    data = ExecuteCommand( i,i>>8, cmd );
 
     mem[i] = data; 
   }
@@ -121,27 +127,13 @@ void ReadEEPROM(unsigned char mem[])
 
 void WriteEEPROMByte(unsigned char addr, unsigned char byte)
 {
-  ExecuteCommand( addr, 0, 0x80 ); // read eeprom
-
   unsigned char datapre;
-  int  bytes = read(serialFile, &datapre, 1 );
-  if (bytes<=0) 
-  {
-     perror("read data from serial port");
-     exit(-1);
-  }
+  datapre = ExecuteCommand( addr, 0, 0x80 ); // read eeprom
 
   if (datapre==byte) return;
 
-  ExecuteCommand( byte, 4, 0x80 | 0x20 ); // write eeprom
-
   unsigned char datapost;
-  bytes = read(serialFile, &datapost, 1 );
-  if (bytes<=0) 
-  {
-     perror("read data from serial port");
-     exit(-1);
-  }
+  datapost = ExecuteCommand( byte, 4, 0x80 | 0x20 ); // write eeprom
 
   printf("tried to write %x to EEPROM address %x: %x -> %x\n", 
       byte, addr, datapre, datapost );
@@ -160,18 +152,15 @@ void FillTemp(unsigned char mem[])
   }
 }
 
-void ErasePage(unsigned char addr)
+void ErasePage(unsigned short addr)
 {
-  ExecuteCommand( addr, 0, 0x03 );
-  usleep(10000);
+  ExecuteCommand( addr, addr>>8, 0x03 );
 }
 
-void PageWrite(unsigned char addr)
+void PageWrite(unsigned short addr)
 {
-  ExecuteCommand( addr, 0, 0x05 );
-  usleep(10000);
+  ExecuteCommand( addr, addr>>8, 0x05 );
 }
-
 
 int main(int argc, char**argv)
 {
@@ -187,6 +176,12 @@ int main(int argc, char**argv)
     perror("open serial port");
     return -1;
   }
+
+  struct termios serset;
+  tcgetattr(serialFile, &serset);
+  cfsetospeed(&serset, B38400); 
+  cfmakeraw(&serset);
+  tcsetattr(serialFile, TCSANOW, &serset); 
 
   for (;;)
   {
@@ -237,14 +232,26 @@ int main(int argc, char**argv)
 
   if (argv[1][0]=='w')
   {
-    unsigned char dummy[] = "Hello World: this is just a test if write flash works";
+    unsigned char dummy[] = {
+       0xa8,0x95,0x0f,0xef,0x0a,0x95,0xf1,0xf7,
+       0xfb,0xcf,0xff,0xff,0xff,0xff,0xff,0xff,
+       0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+       0xff,0xff,0xff,0xff,0xff,0xff,0xf0,0xcf
+    };
     printf("fill temp\n");
     FillTemp( dummy ); 
     printf("erase page\n");
-    ErasePage( 0x20 );
+    ErasePage( 0x760 );
     printf("page write\n");
-    PageWrite( 0x20 );
+    PageWrite( 0x760 );
   }
+
+  if (argv[1][0]=='k')
+  {
+    printf("erase page\n");
+    ErasePage( 0x760 );
+  }
+
 
   if (argv[1][0]=='f')
   {
