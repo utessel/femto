@@ -11,14 +11,30 @@ Features:
   - allows to flash new code (and set fuses)
 
 Special thanks:
-ideas found everywhere, but especially to Ralph Duncaster for his picoboot.
+ideas found everywhere, but especially to Ralph Doncaster for his picoboot:
+
+  https://github.com/nerdralph/picoboot/blob/master/picobootSerial.S
 
 
-The file mydude.c is just a quick hack to test
-the different aspects of the bootloader.
-it is far from perfect, as it doesn't handle timeouts
-etc, and it is not usable for anything real.
+How to use it:
 
-to compile it: (Linux!)
-  cc -o mydude mydude.c
+You need an application that speaks the protocol.
+Currently there is only "mydude": It implements most/all
+of the protocol, but lacks some timeout handling etc.
+so it is far from perfect:
+It might be useful to understand how the protocol works?
+
+To compile mydude:
+  cc -Wall -o mydude mydude.c
+
+At least it supports to upload a binary:
+You can generate a binary from a normal compile with
+
+  avr-objcopy -j .data -j .text -O binary blink blink.bin
+
+with blink being the elf-File and blink.bin the result that
+can be uploaded:
+
+  mydude w /dev/ttyUSB0 blink.bin
+
 

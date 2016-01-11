@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -14,11 +15,11 @@ int serialFile;
 
 void Usage(const char * name)
 {
-  printf("%s <option> <serial device>\n", name );
+  printf("%s <option> <serial device> [filename]\n", name );
   printf("option:\n");
 
   printf(" r: read flash\n");
-  printf(" w: write a page\n");
+  printf(" w: write a binary\n");
   printf(" f: read fuses\n");
   printf(" e: read eeprom\n");
   printf(" k: kill app\n");
@@ -28,7 +29,7 @@ void Usage(const char * name)
 unsigned char calcChecksum( unsigned char a,unsigned char b,unsigned char cmd)
 {
 #define xor ^
-  unsigned char result = ((((1 xor a)+1) xor b)+1) xor (cmd-1);
+  return ((((1 xor a)+1) xor b)+1) xor (cmd-1);
 }
 
 void SendCommand( unsigned char a,unsigned char b,unsigned char cmd)
@@ -99,7 +100,6 @@ void ReadMem(unsigned char mem[], int size, unsigned char cmd)
   int i;
   for (i=0;i<size;i++)
   {
-    int bytes;
     if (i%32==0) { printf("%04x\r",i); fflush(stdout); }
 
     unsigned char data;
@@ -162,6 +162,62 @@ void PageWrite(unsigned short addr)
   ExecuteCommand( addr, addr>>8, 0x05 );
 }
 
+
+void UploadFile(const char * name)
+{
+  int i;
+  unsigned char buffer[2048 - 128];
+  unsigned char flashPost[2048];
+
+  memset( buffer, 0xFF, sizeof(buffer) );
+
+  int fd = open( name, O_RDONLY );
+  if (fd<0) return;
+  int bytes = read( fd, &buffer, sizeof(buffer));
+  close(fd);
+
+  // copy rjmp fromreset vector
+
+  unsigned short appstart = buffer[1]<<8 | buffer[0];
+  appstart &= 0x0FFF;
+  appstart ++;
+  appstart *= 2;
+  printf("App starts at 0x%x\n", appstart );
+
+  appstart -= 0x780;
+  appstart /= 2;
+  appstart &= 0x0FFF;
+  appstart |= 0xC000;
+  printf("that gives %02x %02x\n", appstart&0xff, appstart>>8 );
+
+  buffer[0x780-2] = appstart&0xff;
+  buffer[0x780-1] = appstart>>8;
+
+  // and patch jump to bootloader to reset vector
+  buffer[0] = 0xBF;
+  buffer[1] = 0xC3;
+
+  printf("Uploading data\n");
+  for (i=0; i<bytes; i+=0x20)
+  {
+    printf("Address %x\r", i); fflush(stdout);
+    FillTemp( &buffer[i] ); 
+    ErasePage( i );
+    PageWrite( i );
+  }
+
+  if (i<0x780)
+  {
+    FillTemp( &buffer[0x760] ); 
+    ErasePage( 0x760 );
+    PageWrite( 0x760 );
+  }
+  printf("Reading flash\n");
+
+  ReadFlash( flashPost );
+  DumpMemory( flashPost, sizeof(flashPost));
+}
+
 int main(int argc, char**argv)
 {
   if (argc<3)
@@ -170,7 +226,7 @@ int main(int argc, char**argv)
     return -1;
   }
 
-  serialFile = open( argv[argc-1], O_RDWR);
+  serialFile = open( argv[2], O_RDWR);
   if (serialFile<0)
   {
     perror("open serial port");
@@ -232,26 +288,15 @@ int main(int argc, char**argv)
 
   if (argv[1][0]=='w')
   {
-    unsigned char dummy[] = {
-       0xa8,0x95,0x0f,0xef,0x0a,0x95,0xf1,0xf7,
-       0xfb,0xcf,0xff,0xff,0xff,0xff,0xff,0xff,
-       0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-       0xff,0xff,0xff,0xff,0xff,0xff,0xf0,0xcf
-    };
-    printf("fill temp\n");
-    FillTemp( dummy ); 
-    printf("erase page\n");
-    ErasePage( 0x760 );
-    printf("page write\n");
-    PageWrite( 0x760 );
-  }
+    if (argc<4) printf("please give me a filename\n");
+    UploadFile(argv[3]);
+   }
 
   if (argv[1][0]=='k')
   {
     printf("erase page\n");
     ErasePage( 0x760 );
   }
-
 
   if (argv[1][0]=='f')
   {
