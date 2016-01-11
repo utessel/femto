@@ -92,6 +92,17 @@ bootMain:
     ori RESETREASON, 0x20  ; make value a readable character
 
 #if WATCHDOG > 0
+    ; wdr not required here, because one is done by reset
+    in TEMP, WDTCSR
+    ori TEMP, (1<<WDCE) | (1<<WDE)
+    out WDTCSR, TEMP
+    ldi TEMP, (1<<WDE) | ((WATCHDOG-1) &0x7) | (((WATCHDOG-1)&8)<<2)
+    out WDTCSR, TEMP
+#elif WATCHDOG < 0
+    ; todo: disable watchdog?
+#endif
+
+#if WATCHDOG > 0
     cpi RESETREASON, 0x28   ; (only) via watchdog?
     breq preboot
 
@@ -124,17 +135,6 @@ bootMain:
    ; 2 stop bits? 
     ldi TEMP, (1<<USBS)|(3<<UCSZ0)
     out UCSRC,TEMP
-#endif
-
-#if WATCHDOG > 0
-    ; wdr not required here, because one is done by reset
-    in TEMP, WDTCSR
-    ori TEMP, (1<<WDCE) | (1<<WDE)
-    out WDTCSR, TEMP
-    ldi TEMP, (1<<WDE) | ((WATCHDOG-1) &0x7) | (((WATCHDOG-1)&8)<<2)
-    out WDTCSR, TEMP
-#elif WATCHDOG < 0
-    ; todo: disable watchdog?
 #endif
 
     ldi ACK,    'A'
