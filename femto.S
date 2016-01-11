@@ -66,33 +66,34 @@
   #error baud rate error larger than 1% 
 #endif
 
-#define CHECK R2
-#define DATA R16
+#define CHECK       R2
+#define ZERO        R15
+#define DATA        R16
 #define TEMP        R17
 #define WAITING     R18
 #define ACK         R19
-#define FAIL        R20
-#define RESETREASON R21
-
+#define RESETREASON R20
+#define PREVREASON  R21
 
 .org 0
 .text
-    rjmp preboot
+    rjmp bootMain
 
-.org 0x780-2
+.org 0x780-2,0xff
 
 preboot:
 .byte 0xFF,0xFF   ; if appl is avail, a jump should be stored here
                   ; if not, this is a kind of "NOP"
 .global bootMain  
 bootMain:
+    clr ZERO ; good to know: registers are _not_ cleared by reset
     in RESETREASON, MCUSR  ; keep for later
-    out MCUSR, TEMP        ; and clear it (temp is 0)
+    out MCUSR, ZERO        ; and clear it 
     ori RESETREASON, 0x20  ; make value a readable character
 
 #if WATCHDOG > 0
-    sbrc RESETREASON,4     ; via watchdog?
-    rjmp preboot           ; then try to start app
+    cpi RESETREASON, 0x28   ; (only) via watchdog?
+    breq preboot
 
     ; works like this:
     ; at power on, the watchdog wasn't the reason for reset
@@ -102,9 +103,11 @@ bootMain:
     ; if it does not exist, the bit is cleared already
     ; so we run through (and will do this forever until
     ; a command is received)
-    ; the only thing is: the app will not know if it was
-    ; really reset by the watchdog
 
+    ; store the RESETREASON to RAM here: RAM Will not be cleared 
+    ; by another reset. So the app can find out the reason before 
+    ; the app was started via the watchdog path (double reset)
+    push RESETREASON  ; store it at end of ram 
 #endif
 
 #if (UBRR_VAL>>8)!=0
@@ -118,17 +121,17 @@ bootMain:
     out UCSRB,TEMP
 
 #if 0
-   ; 2 stop bits?
+   ; 2 stop bits? 
     ldi TEMP, (1<<USBS)|(3<<UCSZ0)
     out UCSRC,TEMP
 #endif
 
 #if WATCHDOG > 0
-;    wdr 
+    ; wdr not required here, because one is done by reset
     in TEMP, WDTCSR
     ori TEMP, (1<<WDCE) | (1<<WDE)
     out WDTCSR, TEMP
-    ldi r16, (1<<WDE) | (WATCHDOG-1)
+    ldi TEMP, (1<<WDE) | ((WATCHDOG-1) &0x7) | (((WATCHDOG-1)&8)<<2)
     out WDTCSR, TEMP
 #elif WATCHDOG < 0
     ; todo: disable watchdog?
@@ -141,25 +144,12 @@ bootMain:
     out UDR, RESETREASON
 
 checksumfail:
-#if WATCHDOG > 0
-    ; do not handle watchdog here, so we get a restart
-    ; if nothing comes in
-#else
-    ; todo
-#endif
-
-#if 0 
     ; max 2 chars to send in buffer:
     ; and the buffer will flush while waiting for
     ; bytes to be received
-bootWait:
-    sbis UCSRA,UDRE
-    rjmp bootWait
-#endif
     out UDR, WAITING   ; tell loader we are waiting
-
-bootLoop:
     clr CHECK
+
 rxLoop:
 #if WATCHDOG>0
     wdr
@@ -201,7 +191,7 @@ sendbyte:
 other:
 #if 0
     ; let watchdog handle this: No interaction required
-    ; but without watchdog, it might be useful
+    ; but without watchdog, something like that might be useful
     sbrc DATA,6      ; bit 6 set = start application
     rjmp preboot
 #endif
@@ -240,6 +230,6 @@ rxByte:
     eor CHECK,DATA
     ret
 
-.org 0x7fC
+.org 0x7fC,0xFF
 magic: ; can be read via the lpm path
 .byte 0x1e,0x91,0x0a,0x00
