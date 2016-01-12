@@ -29,7 +29,7 @@ void Usage(const char * name)
 unsigned char calcChecksum( unsigned char a,unsigned char b,unsigned char cmd)
 {
 #define xor ^
-  return ((((1 xor a)+1) xor b)+1) xor (cmd-1);
+   return  ((((0x40 xor a)+1) xor b)+1) xor ((-1 xor cmd)-1);
 }
 
 void SendCommand( unsigned char a,unsigned char b,unsigned char cmd)
@@ -74,7 +74,7 @@ unsigned char ExecuteCommand( unsigned char a, unsigned char b, unsigned char cm
          perror("read ack from serial port");
          exit(-1);
       }
-      if (ack == 'A') break;
+      if (ack == '@') break;
 
       if (ack == 'W')
       {
@@ -187,8 +187,8 @@ void UploadFile(const char * name)
   appstart -= 0x780;
   appstart /= 2;
   appstart &= 0x0FFF;
-  appstart |= 0xC000;
-  printf("that gives %02x %02x\n", appstart&0xff, appstart>>8 );
+  appstart |= 0xD000;
+  printf("that gives %02x %02x (rcall)\n", appstart&0xff, appstart>>8 );
 
   buffer[0x780-2] = appstart&0xff;
   buffer[0x780-1] = appstart>>8;
@@ -262,7 +262,7 @@ int main(int argc, char**argv)
 
     if (wait == 'W')
     {
-      if ((reason&0xF0)!=0x20) 
+      if ((reason&0xF0)!=0x00) 
       {
          printf("strange reset\n");
          continue;
