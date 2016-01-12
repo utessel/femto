@@ -219,7 +219,7 @@ afterFirstRx:      // this address is found on the stack in
       by repeating the last command.
     */
 
-    bld DATA,6     // copy bit 6 to T flag: checked later
+    bst DATA,6     // copy bit 6 to T flag: checked later
 #ifndef NO_EEPROM
     sbrc DATA,7    // bit 7 set = not a SPM/LPM command
     rjmp other
