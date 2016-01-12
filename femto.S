@@ -109,16 +109,12 @@ bootMain:
 
   // --------------------------------------------------
   // check the reset reason to know when to start the app
-#if 1
-    ldi r26, (RAMEND-1) // load X 
-#else
-    in r26,SP  // load X with SP
-#endif
-    
+    in r30,SP  // load Z with SP
+
     // read top of stack (old values)
-    ld TEMP,-X   
+    ld TEMP,Z   
     cpi TEMP, pm_lo8( afterFirstRx )   
-    ld CHECK,-X 
+    ld CHECK,-Z 
     ldi TEMP, pm_hi8( afterFirstRx )   
     cpc CHECK, TEMP
     ldi TEMP, 8
@@ -299,7 +295,9 @@ rxByte:
     /* 
     the main idea for this inc and starting with 0x40
     is to avoid a valid checksum when four indentical
-    bytes are received, which might happen
+    bytes are received, which might happen, especially
+    if someone is using a terminal: That should _not_
+    destroy the flash or anything.
     */
     ret
 
