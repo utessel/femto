@@ -34,7 +34,7 @@
   - allows to read the flash and fuses
   - allows to read and write the EEPROM
   and, of course: 
-  - allows to flash new code (and set fuses)
+  - allows to flash new code 
 
   How does it work:
   The main idea is to keep the code stupid:
@@ -231,7 +231,7 @@ afterFirstRx:      // this address is found on the stack in
     rjmp sendByte  // and send result
 
     // --------------------------------------------------
-    // a "SPM" Command: 0x00..0x3F  (write memory or fuses)
+    // a "SPM" Command: 0x00..0x3F  (write memory)
 writespm:
     spm           // NOP if bit 0 wasn't set in DATA
     movw r0,ZL    // transfer Z to r0:1 (for next command)

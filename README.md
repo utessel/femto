@@ -11,7 +11,7 @@ Features:
   - allows to read the flash and fuses
   - allows to read and write the EEPROM
   and, of course: 
-  - allows to flash new code (and set fuses)
+  - allows to flash new code (but not set fuses)
 
 The usage of the watchdog is making this loader hopefully very useful:
 
