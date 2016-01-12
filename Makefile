@@ -1,14 +1,25 @@
-TARGET = femto
+.PHONY: all
+all: femto blink.bin mydude
 
-.PHONY: $(TARGET)
-$(TARGET): 
+femto: femto.S
 	avr-gcc -nostartfiles -mmcu=attiny2313 femto.S -DWATCHDOG=7 -o femto
 
-$(TARGET).hex : $(TARGET)
+
+femto.hex : femto
 	 avr-objcopy -j .data -j .text -O ihex $< $@
 
-load: $(TARGET).hex
-	avrdude -V -p t2313 -c usbtiny -U flash:w:$(TARGET).hex 
+load: femto.hex
+	avrdude -V -p t2313 -c usbtiny -U flash:w:femto.hex 
 
+mydude: mydude.c
+	gcc -Wall mydude.c -o mydude
+
+blink.bin: blink
+	 avr-objcopy -j .data -j .text -O binary $< $@
+
+blink: blink.cpp
+	avr-gcc -O2 -o blink blink.cpp -DF_CPU=8000000 -mmcu=attiny2313
+
+.PHONY: clean
 clean:
-	rm -f *.o  *.hex $(TARGET)
+	rm -f *.o  *.hex *.bin femto blink mydude
