@@ -79,15 +79,15 @@
 #define WATCHDOG 7
 #endif
 
-.org 0
-.text
+.section .intvect,"ax",@progbits
     rjmp bootMain
 
-.org 0x780-2,0xff
-
+.section .bootpre.bootload,"ax",@progbits
 preboot:
 .byte 0xFF,0xFF   // if appl is avail, a rcall should be stored here
-                  // if not, this is a kind of "NOP"
+ // if not, this is a kind of "NOP"
+                 
+.section .bootmain.bootload,"ax",@progbits
 .global bootMain  
 bootMain:
   //--------------------------------------------------
@@ -301,8 +301,6 @@ rxByte:
     */
     ret
 
-#if 1
-.org 0x7fC,0xFF
+.section .magic.bootload,"ax",@progbits
 magic: // can be read via the lpm path
 .byte 0x1e,0x91,0x0a,0x00
-#endif

@@ -1,12 +1,14 @@
 .PHONY: all
-all: femto blink.bin mydude
+all: femto.hex femtoreset.hex blink.bin mydude
 
 femto: femto.S
-	avr-gcc -nostartfiles -mmcu=attiny2313 femto.S -DWATCHDOG=7 -o femto
-
+	avr-gcc -nostartfiles -mmcu=attiny2313 -T femto.x femto.S -o femto
 
 femto.hex : femto
-	 avr-objcopy -j .data -j .text -O ihex $< $@
+	 avr-objcopy -j bootload -O ihex $< $@
+
+femtoreset.hex : femto
+	 avr-objcopy -j intvect -O ihex $< $@
 
 load: femto.hex
 	avrdude -V -p t2313 -c usbtiny -U flash:w:femto.hex 
