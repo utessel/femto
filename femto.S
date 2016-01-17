@@ -27,22 +27,23 @@
   ideas found everywhere, but especially to picoboot from 
   Ralph Doncaster.
 
-  Features:
+  Features/Drawbacks of this bootloader:
   - requires hardware USART
-  - uses, configures and handles Watchdog 
+  - uses, configures and handles the Watchdog 
   - still smaller than 128 bytes
-  - allows to read the flash and fuses
-  - allows to read and write the RAM
-  - via RAM access you can access all Hardware
-  - including read and write of the EEPROM
-  and, of course: 
+  - allows to read the flash 
   - allows to flash new code 
+  - allows to read the fuses
+  - allows to read and write the data "RAM"
+  - via this "RAM" access you can access everything:
+  - allo kind of external IO or internal IO:
+  - including read and write of the EEPROM
 
   How does it work:
   The main idea is to keep the code stupid:
   it does not know why and what it does, it simply forwards
   requests it receives to the chip: SPM, LPM, read from address,
-  write to address
+  write to address. 
 
   Protocol: 
   6 Bytes:
@@ -54,11 +55,12 @@
      Byte 5: checksum
  
   A request will generate an Ack or Error byte after
-  receiving the four bytes and one "result" byte after the
-  command was executed.
+  receiving the six bytes and one "result" byte after the
+  command was executed. The last is important when you use
+  "waitfor".
   
-  For details: Check the data sheet (SPM/LPM) and the source
-  below.
+  For details: 
+  Check the data sheet (SPM/LPM !) and the source below.
  */
 
 
@@ -104,7 +106,6 @@ bootMain:
     clr r1
     in DATA, MCUSR  // keep for later
     out MCUSR, r1   // and clear it  
-                    // (for this ACK must have lowest bits clear)
 
 
   //--------------------------------------------------
@@ -126,7 +127,7 @@ bootMain:
     ld TEMP,-Z // skips top of stack 
     out SP,r30 // = dec SP (low byte is enough here)
 #else
-    ld TEMP,Z // skips top of stack 
+    ld TEMP,Z 
 #endif
     cpi TEMP, pm_lo8( afterRx )   
     ld CHECK,-Z 
@@ -135,7 +136,7 @@ bootMain:
     ldi TEMP, 8
     cpc DATA, TEMP
     breq preboot // the call below and a watchdog reset?
-                 // then no bytes were received here:
+                 // then no bytes were received while in bootloader:
                  // call the app!
 
 #if 0
@@ -168,7 +169,6 @@ bootMain:
    // Main of bootloader
    ldi ACK,     '@'
    ldi WAITING, 'W'
-   mov CHECK, WAITING
 checksumfail:
 
     out UDR, WAITING   // tell loader we are waiting
@@ -242,10 +242,10 @@ writeram:         // write ram: 00..3F
     sbrc DATA,0   // don't read if Bit 0 is set
 readram:         
     ld DATA,Z
-    brne sendByte // C0 = waitfor 
-    and DATA,r0  
-    cp DATA,r1   
-    rjmp readram 
+    brne sendByte // not equal -> not C0 
+    and DATA,r0   // C0 is waitfor:
+    cp DATA,r1    // poll one io for change
+    rjmp readram  
 sendByte:
     out UDR, DATA
     rjmp rxLoop
