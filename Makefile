@@ -5,16 +5,16 @@ femto: femto.S
 	avr-gcc -nostartfiles -mmcu=attiny2313 -T femto.x femto.S -o femto
 
 femto.hex : femto
-	 avr-objcopy -j bootload -O ihex $< $@
+	 avr-objcopy -j bootload -j magic -O ihex $< $@
 
 femtoreset.hex : femto
 	 avr-objcopy -j intvect -O ihex $< $@
 
 load: femto.hex
-	avrdude -V -p t2313 -c usbtiny -U flash:w:femto.hex 
+	avrdude -D -V -p t2313 -c usbtiny -U flash:w:femto.hex 
 
-mydude: mydude.c
-	gcc -Wall mydude.c -o mydude
+mydude: mydude.cpp
+	g++ -Wall -std=c++11 mydude.cpp -o mydude
 
 blink.bin: blink
 	 avr-objcopy -j .data -j .text -O binary $< $@
