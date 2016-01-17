@@ -562,16 +562,8 @@ int main(int argc, char**argv)
 
   if (argv[1][0]=='w')
   {
-    //if (argc<4) printf("please give me a filename\n");
-
-    unsigned char mem[0x20] = "Hello World, this test again";
-
-    mydude.ErasePage( 0x100 );
-    mydude.LoadTemp( mem, sizeof(mem) );
-
-    mydude.WritePage( 0x100 );
-
-    //UploadFile(mydude, argv[3]);
+    if (argc<4) printf("please give me a filename\n");
+    UploadFile(mydude, argv[3]);
   }
 
   if (argv[1][0]=='k')
